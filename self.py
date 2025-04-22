@@ -190,12 +190,8 @@ class Agent:
         width = math.ceil(width * self.width / self.image.width)
         ImageDraw.Draw(self.image).line(points, fill=color, width=width)
     
-    # def _mark(self, 
-    #     point_coords: Optional[np.ndarray] = None,
-    #     point_labels: Optional[np.ndarray] = None,
-    #     box: Optional[np.ndarray] = None,
-    #     ):
-    #     pass
+    def _mark(self, box: tuple[int, int, int, int] | None = None):
+        pass
 
 from data.data import get_task_data
 if __name__ == '__main__':
