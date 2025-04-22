@@ -163,6 +163,10 @@ class Agent:
             for x in messages[-1].tool_calls:
                 if x.type == 'function':
                     func = getattr(self, x.function.name)
+                    if getattr(json.loads(x.function.arguments), 'bbox', None) == [0, 0, 1000, 1000]:
+                        return client.chat.completions.create(
+                            messages=[{'role': 'user', 'content': text}] + self.openai_image,
+                        ).choices[0].message.content
                     messages.append({
                         'role': 'tool',
                         'name': x.function.name,
