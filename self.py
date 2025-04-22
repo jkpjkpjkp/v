@@ -1,11 +1,13 @@
 import base64
 from io import BytesIO
 from PIL import Image, ImageDraw
-from openai import OpenAI
+import openai
 from docstring_parser import parse
 import math
+import inspect
+from typing import get_args, get_origin
 
-model = 'gpt-4.1'
+model = 'gemini-2.0-flash'
 format = 'png'
 
 def to_base64(image: Image.Image):
@@ -37,40 +39,63 @@ class Agent:
             if not callable(func) or isinstance(func, property):
                 continue
 
-            docstring = parse(func.__doc__)
+            docstring = parse(func.__doc__ or '')
+            sig = inspect.signature(func)
             properties = {}
             required = []
-            for param in docstring.params:
-                properties[param.arg_name] = {
-                    'type': {
-                        'str': 'string',
-                        'int': 'integer',
-                        'bool': 'boolean',
-                        'list': 'array',
-                        'tuple': 'array',
-                    }[param.type_name.lower()],
-                    'description': param.description
-                }
-                if param.default is None:
-                    required.append(param.arg_name)
+            
+            for name, param in sig.parameters.items():
+                if name == 'self':
+                    continue
+                
+                annotation = param.annotation
+                if annotation == inspect.Parameter.empty:
+                    continue
+                
+                origin = get_origin(annotation)
+                args = get_args(annotation)
+                
+                if origin in (list, tuple):
+                    param_type = 'array'
+                else:
+                    param_type = {
+                        str: 'string',
+                        int: 'integer',
+                        bool: 'boolean',
+                        list: 'array',
+                        tuple: 'array',
+                    }[annotation]
 
-            tools.append({
-                'type': 'function',
-                'function': {
-                    'name': attr,
-                    'description': docstring.short_description,
-                    'parameters': {
-                        'type': 'object',
-                        'properties': properties,
-                        'required': required,
-                    }
+                # Get description from docstring if available
+                param_desc = next(p.description for p in docstring.params if p.arg_name == name)
+                
+                properties[name] = {
+                    'type': param_type,
+                    'description': param_desc
                 }
-            })
+                
+                # Parameter is required if it has no default value
+                if param.default == inspect.Parameter.empty:
+                    required.append(name)
+
+            if properties:  # Only add if the function has parameters
+                tools.append({
+                    'type': 'function',
+                    'function': {
+                        'name': attr,
+                        'description': docstring.short_description or '',
+                        'parameters': {
+                            'type': 'object',
+                            'properties': properties,
+                            'required': required,
+                        }
+                    }
+                })
 
         messages = [{'role': 'user', 'content': text}]
-        messages.append(OpenAI.chat.completions.create(
+        messages.append(openai.chat.completions.create(
             model=model,
-            input=messages,
+            messages=messages,
             tools=tools
         ).choices[0].message)
         while messages[-1].tool_calls:
@@ -82,9 +107,9 @@ class Agent:
                         'name': x.function.name,
                         'content': func(**x.function.arguments),
                     })
-            messages.append(OpenAI.chat.completions.create(
+            messages.append(openai.chat.completions.create(
                 model=model,
-                input=messages + [{'role': 'user', 'content': [{'type': 'image_url', 'image_url': {'url': f'data:image/{format};base64,' + to_base64(self.display)}}]}],
+                messages=messages + [{'role': 'user', 'content': [{'type': 'image_url', 'image_url': {'url': f'data:image/{format};base64,' + to_base64(self.display)}}]}],
                 tools=tools
             ).choices[0].message)
         
@@ -105,7 +130,7 @@ class Agent:
         """
         return Agent(self.image, self._translate_bbox(bbox))(text)
 
-    def draw(self, points: list[tuple[int, int]], color: str = 'red', width: int = 1):
+    def _draw(self, points: list[tuple[int, int]], color: str = 'red', width: int = 1):
         """Draw line segments on the image.
         
         Args:
@@ -117,3 +142,11 @@ class Agent:
         width = math.ceil(width * self.width / self.image.width)
         ImageDraw.Draw(self.image).line(points, fill=color, width=width)
     
+    def _mark(self, prompt):
+        pass
+
+from data.data import get_task_data
+if __name__ == '__main__':
+    task = get_task_data('37_3')
+    agent = Agent(task['image'])
+    print(agent(task['question']))
