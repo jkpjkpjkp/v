@@ -57,7 +57,7 @@ class Graph(SQLModel, table=True):
         question = task['question']
         try:
             exec(self.graph, namespace)
-            graph_class = namespace.get("LoggingAgent")
+            graph_class = namespace.get("Agent")
             graph = graph_class(image)
             import sys
             old_stdout = sys.stdout
@@ -122,5 +122,5 @@ def get_graph_from_a_file(path: str):
     return graph
 
 if __name__ == '__main__':
-    graph = get_graph_from_a_file('tmp.py')
+    graph = get_graph_from_a_file('pretty.py')
     graph.run('37_2')
