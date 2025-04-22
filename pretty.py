@@ -184,7 +184,7 @@ class Agent:
         ))
 
     def spawn(self, bbox: tuple[int, int, int, int], text: str) -> str:
-        """Spawn a subagent. It will be given a crop of the image and a task to finish. 
+        """DO NOT CALL THIS WITH [0, 0, 1000, 1000]. Spawn a subagent. It will be given a crop of the image and a task to finish. 
 
         Use this tool liberally, unless you are absolutely very sure.
         this tool can be used to 
@@ -200,7 +200,7 @@ class Agent:
         if bbox == [0, 0, 1000, 1000]:
             raise ValueError('bbox is [0, 0, 1000, 1000]')
         bbox = self._translate_bbox(bbox)
-        return Agent(self.image, bbox)(text)
+        return type(self)(self.image, bbox)(text)
 
 
 from data.data import get_task_data
