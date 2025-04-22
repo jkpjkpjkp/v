@@ -43,7 +43,7 @@ class Graph(SQLModel, table=True):
         namespace = {
             '__name__': '__exec__',
             '__package__': None,
-            'SQLModel': SQLModel,  # Add required imports to namespace
+            'SQLModel': SQLModel,
             'Field': Field,
             'Relationship': Relationship,
             'Column': Column,
