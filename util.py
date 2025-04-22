@@ -13,6 +13,9 @@ os.environ['OPENAI_API_KEY'] = os.environ['OPENROUTER_API_KEY']
 os.environ['OPENAI_BASE_URL'] = 'https://openrouter.ai/api/v1'
 model = 'google/gemini-2.5-flash-preview:thinking'
 
+
+format = 'png'
+
 def has_model_param(func):
     """
     Check if a function accepts a 'model' parameter.
@@ -140,3 +143,18 @@ class PrepareToolClass:
             (int(p * s + o) for p, s, o in zip(bbox[:2], (self.width / 1000, self.height / 1000), (self.bbox[0], self.bbox[1]))),
             (math.ceil(p * s + o) for p, s, o in zip(bbox[2:], (self.width / 1000, self.height / 1000), (self.bbox[0], self.bbox[1])))
         ))
+    
+        
+    @property
+    def width(self):
+        return self.bbox[2] - self.bbox[0]
+    @property
+    def height(self):
+        return self.bbox[3] - self.bbox[1]
+    @property
+    def display(self):
+        return self.image.crop(self.bbox)
+    @property
+    def openai_image(self):
+        return [{'role': 'user', 'content': [{'type': 'image_url', 'image_url': {'url': f'data:image/{format};base64,' + to_base64(self.display)}}]}]
+

@@ -29,6 +29,19 @@ class Graph(SQLModel, table=True):
             ).all()
 
     @property
+    def width(self):
+        return self.bbox[2] - self.bbox[0]
+    @property
+    def height(self):
+        return self.bbox[3] - self.bbox[1]
+    @property
+    def display(self):
+        return self.image.crop(self.bbox)
+    @property
+    def openai_image(self):
+        return [{'role': 'user', 'content': [{'type': 'image_url', 'image_url': {'url': f'data:image/{format};base64,' + to_base64(self.display)}}]}]
+
+    @property
     def score(self) -> float:
         with Session(_engine) as session:
             runs = session.exec(

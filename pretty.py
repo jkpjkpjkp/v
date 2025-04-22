@@ -11,7 +11,6 @@ import json
 import itertools
 from util import client, to_base64, PrepareToolClass
 
-format = 'png'
 
 class Agent(PrepareToolClass):
     def __init__(self, image, bbox=None):
@@ -19,21 +18,8 @@ class Agent(PrepareToolClass):
         self.image = image
         self.bbox = bbox or (0, 0, image.width, image.height)
     
-    @property
-    def width(self):
-        return self.bbox[2] - self.bbox[0]
-    @property
-    def height(self):
-        return self.bbox[3] - self.bbox[1]
-    @property
-    def display(self):
-        return self.image.crop(self.bbox)
-    @property
-    def openai_image(self):
-        return [{'role': 'user', 'content': [{'type': 'image_url', 'image_url': {'url': f'data:image/{format};base64,' + to_base64(self.display)}}]}]
-
     def __call__(self, text):
-        tools = self._prepare_tools()  # defined in PrepareToolClass, reads all declarations non-property, non-start-with-'_' methods in self and convert to openai tool format. 
+        tools = self._prepare_tools()  # defined in PrepareToolClass, reads all method declarations and docstring in self and parse to openai tool format. 
         messages = [{'role': 'user', 'content': text}]
         messages.append(client.chat.completions.create(
             messages=messages + self.openai_image,
@@ -53,7 +39,7 @@ class Agent(PrepareToolClass):
                         'content': func(**json.loads(x.function.arguments)),
                     })
             messages.append(client.chat.completions.create(
-                messages=messages + self.openai_image,
+                messages=messages + self.openai_image, # 'openai_image' property defined in PrepareToolClass
             ).choices[0].message)
         
         return messages[-1].content
