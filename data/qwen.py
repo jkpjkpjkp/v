@@ -10,6 +10,7 @@ gemini = {
     'gemini-2.0-flash': 0.4 * usd2rmb,
     'gemini-2.5-flash': 0.6 * usd2rmb,
     'gemini-2.5-flash-thinking': 3.5 * usd2rmb,
+    'google/gemini-2.5-flash-preview:thinking': 3.5 * usd2rmb,
     'gemini-2.5-pro-exp': 10 * usd2rmb,
 }
 
