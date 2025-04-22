@@ -1,6 +1,6 @@
 import base64
 from io import BytesIO
-from PIL import Image
+from PIL import Image, ImageDraw
 from openai import OpenAI
 from docstring_parser import parse
 import math
@@ -87,11 +87,14 @@ class Agent:
                 input=messages + [{'role': 'user', 'content': [{'type': 'image_url', 'image_url': {'url': f'data:image/{format};base64,' + to_base64(self.display)}}]}],
                 tools=tools
             ).choices[0].message)
+        
+        return messages[-1].content
+    
+    def _translate_coord(self, coord: tuple[int, int]) -> Image.Image:
+        return tuple(p * s + o for p, s, o in zip(coord, (self.width, self.height) / 1000, (self.bbox[0], self.bbox[1])))
 
     def _translate_bbox(self, bbox: tuple[int, int, int, int]) -> Image.Image:
-        scale = (self.width/1000, self.height/1000, self.width/1000, self.height/1000)
-        offset = (self.bbox[0], self.bbox[1], self.bbox[0], self.bbox[1])
-        return tuple(p * s + o for p, s, o in zip(bbox, scale, offset))
+        return (*self._translate_coord(bbox[:2]), *self._translate_coord(bbox[2:]))
 
     def spawn(self, bbox: tuple[int, int, int, int], text: str) -> str:
         """Spawn a subagent for a specific region of the image.
@@ -102,3 +105,15 @@ class Agent:
         """
         return Agent(self.image, self._translate_bbox(bbox))(text)
 
+    def draw(self, points: list[tuple[int, int]], color: str = 'red', width: int = 1):
+        """Draw line segments on the image.
+        
+        Args:
+            points: list of x y coordinates, x,y in [0,1000]
+            color: color of the line
+            width: width of the line
+        """
+        points = [self._translate_coord(p) for p in points]
+        width = math.ceil(width * self.width / self.image.width)
+        ImageDraw.Draw(self.image).line(points, fill=color, width=width)
+    
