@@ -9,7 +9,7 @@ db_name = "data/db.sqlite"
 
 class Graph(SQLModel, table=True):
     id: int = Field(primary_key=True)
-    code: str
+    graph: str
     father_id: Optional[int] = Field(default=None, foreign_key="graph.id")
     change: Optional[str] = Field(default=None)
     runs: list["Run"] = Relationship(back_populates="graph")
@@ -38,13 +38,24 @@ class Graph(SQLModel, table=True):
             return 1.0 if not runs else sum(runs) / len(runs)
 
 
-    def run(self):
+    def run(self, image, question):
         namespace = {'__name__': '__exec__', '__package__': None}
         
         try:
             exec(self.graph, namespace)
-            graph_class = namespace.get("Agent")
-            graph = graph_class()
+            with open('ngkx.py') as f:
+                exec(f.read(), namespace)
+            graph_class = namespace.get("LoggingAgent")
+            graph = graph_class(image)
+            # capture stdout and stderr
+            import sys
+            old_stdout = sys.stdout
+            old_stderr = sys.stderr
+            sys.stdout = sys.stderr = a_log = []
+            ret = graph(question)
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
+            return ret, a_log
         except ModuleNotFoundError as e:
             print(f"ModuleNotFoundError: {e}")
             raise
@@ -53,7 +64,6 @@ class Graph(SQLModel, table=True):
             print(self.graph)
             print("--- error ---")
             raise
-        
         
 
 class Run(SQLModel, table=True):
@@ -70,3 +80,4 @@ class Run(SQLModel, table=True):
 
 _engine = create_engine(f"sqlite:///{db_name}")
 SQLModel.metadata.create_all(_engine)
+
