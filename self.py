@@ -32,6 +32,14 @@ class Agent:
 
     def __call__(self, text):
         tools = []
+        type_mapping = {
+            str: 'string',
+            int: 'integer',
+            float: 'number',
+            bool: 'boolean',
+            list: 'array',
+            tuple: 'array',
+        }
         for attr in dir(self):
             if attr.startswith('_'):
                 continue
@@ -55,30 +63,33 @@ class Agent:
                 origin = get_origin(annotation)
                 args = get_args(annotation)
                 
+                # Determine parameter type
                 if origin in (list, tuple):
                     param_type = 'array'
                 else:
-                    param_type = {
-                        str: 'string',
-                        int: 'integer',
-                        bool: 'boolean',
-                        list: 'array',
-                        tuple: 'array',
-                    }[annotation]
-
-                # Get description from docstring if available
-                param_desc = next(p.description for p in docstring.params if p.arg_name == name)
+                    param_type = type_mapping[annotation]
                 
+                # Get description from docstring if available, with fallback
+                param_desc = next((p.description for p in docstring.params if p.arg_name == name), '')
+                
+                # Build parameter schema
                 properties[name] = {
                     'type': param_type,
                     'description': param_desc
                 }
                 
-                # Parameter is required if it has no default value
+                # Add 'items' field for array types
+                if param_type == 'array' and args:
+                    element_type = args[0]
+                    if element_type in type_mapping:
+                        properties[name]['items'] = {'type': type_mapping[element_type]}
+                    # Optionally handle unsupported element types with a default or skip
+                
+                # Mark as required if no default value
                 if param.default == inspect.Parameter.empty:
                     required.append(name)
 
-            if properties:  # Only add if the function has parameters
+            if properties:  # Only add functions with parameters
                 tools.append({
                     'type': 'function',
                     'function': {
@@ -91,12 +102,11 @@ class Agent:
                         }
                     }
                 })
-
         messages = [{'role': 'user', 'content': text}]
         messages.append(openai.chat.completions.create(
             model=model,
-            messages=messages,
-            tools=tools
+            messages=messages + [{'role': 'user', 'content': [{'type': 'image_url', 'image_url': {'url': f'data:image/{format};base64,' + to_base64(self.display)}}]}],
+            tools=tools,
         ).choices[0].message)
         while messages[-1].tool_calls:
             for x in messages[-1].tool_calls:
@@ -110,7 +120,7 @@ class Agent:
             messages.append(openai.chat.completions.create(
                 model=model,
                 messages=messages + [{'role': 'user', 'content': [{'type': 'image_url', 'image_url': {'url': f'data:image/{format};base64,' + to_base64(self.display)}}]}],
-                tools=tools
+                tools=tools,
             ).choices[0].message)
         
         return messages[-1].content
@@ -122,10 +132,10 @@ class Agent:
         return (*self._translate_coord(bbox[:2]), *self._translate_coord(bbox[2:]))
 
     def spawn(self, bbox: tuple[int, int, int, int], text: str) -> str:
-        """Spawn a subagent for a specific region of the image.
+        """Spawn a subagent. It will be given a crop of the image and a task to finish.
         
         Args:
-            bbox: x y x y bounding box coordinates, x,y in [0,1000]
+            bbox: x y x y bounding box, coordinates in [0,1000]
             text: instruction for the subagent
         """
         return Agent(self.image, self._translate_bbox(bbox))(text)
