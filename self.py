@@ -35,6 +35,9 @@ class Agent:
     @property
     def display(self):
         return self.image.crop(self.bbox)
+    @property
+    def openai_image(self):
+        return [{'role': 'user', 'content': [{'type': 'image_url', 'image_url': {'url': f'data:image/{format};base64,' + to_base64(self.display)}}]}]
 
     def __call__(self, text):
         print(text)
@@ -105,30 +108,42 @@ class Agent:
                 })
         log = []
         messages = [{'role': 'user', 'content': text}]
-        messages.append(openai.chat.completions.create(
+        new_round = [openai.chat.completions.create(
             model=model,
-            messages=messages + [{'role': 'user', 'content': [{'type': 'image_url', 'image_url': {'url': f'data:image/{format};base64,' + to_base64(self.display)}}]}],
+            messages=messages + self.openai_image,
             tools=tools,
-        ).choices[0].message)
-        print(messages[-1])
-        while messages[-1].tool_calls:
-            for x in messages[-1].tool_calls:
+        ).choices[0].message]
+        print(new_round[-1])
+        while new_round[-1].tool_calls:
+            for x in new_round[-1].tool_calls:
                 if x.type == 'function':
-                    func = getattr(self, x.function.name)
-                    ret, funclog = func(**json.loads(x.function.arguments))
-                    log.append(funclog)
-                    messages.append({
-                        'role': 'tool',
-                        'name': x.function.name,
-                        'content': ret,
-                    })
-            messages.append(openai.chat.completions.create(
+                    try:
+                        func = getattr(self, x.function.name)
+                        ret, funclog = func(**json.loads(x.function.arguments))
+                        log.append(funclog)
+                        new_round.append({
+                            'role': 'tool',
+                            'name': x.function.name,
+                            'content': ret,
+                        })
+                    except Exception as e:
+                        print(e)
+                        print(messages)
+                        ret = openai.chat.completions.create(
+                            model=model,
+                            messages=messages + self.openai_image,
+                        ).choices[0].message
+                        log.append(ret)
+                        return ret, log
+            messages.extend(new_round)
+            new_round = [openai.chat.completions.create(
                 model=model,
-                messages=messages + [{'role': 'user', 'content': [{'type': 'image_url', 'image_url': {'url': f'data:image/{format};base64,' + to_base64(self.display)}}]}],
+                messages=messages + self.openai_image,
                 tools=tools,
-            ).choices[0].message)
-            print(messages[-1])
+            ).choices[0].message]
+            print(new_round[-1])
         
+        messages.extend(new_round)
         log.append(messages)
         return messages[-1].content, log
     
@@ -151,21 +166,16 @@ class Agent:
 
         Use this tool liberally, unless you are absolutely very sure.
         this tool can be used to 
-            1. zoom-in to related area (1 tool call)
-            2. cut the image into e.g. 4 equal pieces and examine each (e.g. 4 tool calls)
-        
-        Note, however, that calling with bbox = [0, 0, 1000, 1000] is pointless, for then the subagent will see the exact same image as you see. 
+            1. zoom-in to question-related area (1 tool call)
+            2. cut the image into pieces and examine each (many tool calls)
         
         Args:
             bbox: x y x y bounding box, coordinates in [0,1000]
             text: instruction for the subagent
         """
+        if bbox == [0, 0, 1000, 1000]:
+            raise ValueError('bbox is [0, 0, 1000, 1000]')
         bbox = self._translate_bbox(bbox)
-        assert bbox[0] >= self.bbox[0]
-        assert bbox[1] >= self.bbox[1]
-        assert bbox[2] <= self.bbox[2]
-        assert bbox[3] <= self.bbox[3]
-        assert not (bbox == self.bbox)
         return Agent(self.image, bbox)(text)
 
     def _draw(self, points: list[tuple[int, int]], color: str = 'red', width: int = 1):
@@ -180,8 +190,12 @@ class Agent:
         width = math.ceil(width * self.width / self.image.width)
         ImageDraw.Draw(self.image).line(points, fill=color, width=width)
     
-    def _mark(self, prompt):
-        pass
+    # def _mark(self, 
+    #     point_coords: Optional[np.ndarray] = None,
+    #     point_labels: Optional[np.ndarray] = None,
+    #     box: Optional[np.ndarray] = None,
+    #     ):
+    #     pass
 
 from data.data import get_task_data
 if __name__ == '__main__':
