@@ -1,7 +1,7 @@
 import base64
 from io import BytesIO
 from PIL import Image, ImageDraw
-import openai
+from openai import OpenAI
 from docstring_parser import parse
 import math
 import inspect
@@ -14,6 +14,50 @@ from loguru import logger
 os.environ['OPENAI_API_KEY'] = os.environ['OPENROUTER_API_KEY']
 os.environ['OPENAI_BASE_URL'] = 'https://openrouter.ai/api/v1'
 model = 'google/gemini-2.5-flash-preview:thinking'
+import inspect
+from openai import OpenAI
+
+def has_model_param(func):
+    """
+    Check if a function accepts a 'model' parameter.
+    """
+    try:
+        sig = inspect.signature(func)
+        return 'model' in sig.parameters
+    except (TypeError, ValueError):
+        return False
+
+class ModelWrapper:
+    """
+    A wrapper that injects a default 'model' parameter into callable attributes
+    if the method accepts it and it is not already provided.
+    """
+    def __init__(self, obj, default_model):
+        self._obj = obj
+        self.default_model = default_model
+
+    def __getattr__(self, name):
+        attr = getattr(self._obj, name)
+        if callable(attr):
+            def wrapper(*args, **kwargs):
+                if has_model_param(attr) and 'model' not in kwargs:
+                    kwargs['model'] = self.default_model
+                return attr(*args, **kwargs)
+            return wrapper
+        else:
+            return ModelWrapper(attr, self.default_model)
+
+class OpenAIWrapper:
+    """
+    A wrapper around the OpenAI client that sets a default model for API calls.
+    """
+    def __init__(self, default_model, **kwargs):
+        self._client = ModelWrapper(OpenAI(**kwargs), default_model)
+
+    def __getattr__(self, name):
+        return getattr(self._client, name)
+
+client = OpenAIWrapper(model)
 format = 'png'
 
 def to_base64(image: Image.Image):
@@ -40,8 +84,11 @@ class Agent:
     def openai_image(self):
         return [{'role': 'user', 'content': [{'type': 'image_url', 'image_url': {'url': f'data:image/{format};base64,' + to_base64(self.display)}}]}]
 
-    def __call__(self, text):
-        print(text)
+    def _prepare_tools(self):
+        """all functions in the current class will be treated as a tool, unless it is a property or func name starts with '_'
+
+        doc string, parameter type hint and arg description will be converted into tool description. 
+        """
         tools = []
         type_mapping = {
             str: 'string',
@@ -62,18 +109,14 @@ class Agent:
             sig = inspect.signature(func)
             properties = {}
             required = []
-            
             for name, param in sig.parameters.items():
                 if name == 'self':
                     continue
-                
                 annotation = param.annotation
                 if annotation == inspect.Parameter.empty:
                     continue
-                
                 origin = get_origin(annotation)
                 args = get_args(annotation)
-                
                 if origin in (list, tuple):
                     param_type = 'array'
                 else:
@@ -107,60 +150,38 @@ class Agent:
                         }
                     }
                 })
-        log = []
+        return tools
+
+    def __call__(self, text):
+        tools = self._prepare_tools()
         messages = [{'role': 'user', 'content': text}]
-        new_round = [openai.chat.completions.create(
-            model=model,
+        messages.append(client.chat.completions.create(
             messages=messages + self.openai_image,
             tools=tools,
-        ).choices[0].message]
-        print(new_round[-1])
-        while new_round[-1].tool_calls:
-            for x in new_round[-1].tool_calls:
+        ).choices[0].message)
+        if messages[-1].tool_calls:
+            for x in messages[-1].tool_calls:
                 if x.type == 'function':
-                    try:
-                        func = getattr(self, x.function.name)
-                        ret, funclog = func(**json.loads(x.function.arguments))
-                        log.append(funclog)
-                        new_round.append({
-                            'role': 'tool',
-                            'name': x.function.name,
-                            'content': ret,
-                        })
-                    except Exception as e:
-                        print(e)
-                        print(messages)
-                        ret = openai.chat.completions.create(
-                            model=model,
-                            messages=messages + self.openai_image,
-                        ).choices[0].message
-                        log.append(ret)
-                        return ret, log
-            messages.extend(new_round)
-            new_round = [openai.chat.completions.create(
-                model=model,
+                    func = getattr(self, x.function.name)
+                    messages.append({
+                        'role': 'tool',
+                        'name': x.function.name,
+                        'content': func(**json.loads(x.function.arguments)),
+                    })
+            messages.append(client.chat.completions.create(
                 messages=messages + self.openai_image,
-                tools=tools,
-            ).choices[0].message]
-            print(new_round[-1])
+            ).choices[0].message)
         
-        messages.extend(new_round)
-        log.append(messages)
-        return messages[-1].content, log
+        return messages[-1].content
     
-    def _translate_coord(self, coord: tuple[int, int]) -> Image.Image:
+    def _translate_coord(self, coord: tuple[int, int]) -> tuple:
         return tuple(int(p * s + o) for p, s, o in zip(coord, (self.width / 1000, self.height / 1000), (self.bbox[0], self.bbox[1])))
 
-    def _translate_bbox(self, bbox: tuple[int, int, int, int]) -> Image.Image:
-        print (bbox)
-        print (self.width, self.height)
-        print(self.bbox[0], self.bbox[1])
-        ret = tuple(itertools.chain(
+    def _translate_bbox(self, bbox: tuple[int, int, int, int]) -> tuple:
+        return tuple(itertools.chain(
             (int(p * s + o) for p, s, o in zip(bbox[:2], (self.width / 1000, self.height / 1000), (self.bbox[0], self.bbox[1]))),
             (math.ceil(p * s + o) for p, s, o in zip(bbox[2:], (self.width / 1000, self.height / 1000), (self.bbox[0], self.bbox[1])))
         ))
-        print(ret)
-        return ret
 
     def spawn(self, bbox: tuple[int, int, int, int], text: str) -> str:
         """Spawn a subagent. It will be given a crop of the image and a task to finish. 
@@ -170,6 +191,8 @@ class Agent:
             1. zoom-in to question-related area (1 tool call)
             2. cut the image into pieces and examine each (many tool calls)
         
+        DO NOT CALL THIS WITH [0, 0, 1000, 1000]. in which case directly answer. 
+            
         Args:
             bbox: x y x y bounding box, coordinates in [0,1000]
             text: instruction for the subagent
@@ -179,20 +202,6 @@ class Agent:
         bbox = self._translate_bbox(bbox)
         return Agent(self.image, bbox)(text)
 
-    def _draw(self, points: list[tuple[int, int]], color: str = 'red', width: int = 1):
-        """Draw line segments on the image.
-        
-        Args:
-            points: list of x y coordinates, x,y in [0,1000]
-            color: color of the line
-            width: width of the line
-        """
-        points = [self._translate_coord(p) for p in points]
-        width = math.ceil(width * self.width / self.image.width)
-        ImageDraw.Draw(self.image).line(points, fill=color, width=width)
-    
-    def _mark(self, box: tuple[int, int, int, int] | None = None):
-        pass
 
 from data.data import get_task_data
 if __name__ == '__main__':
