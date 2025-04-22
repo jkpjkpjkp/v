@@ -63,29 +63,23 @@ class Agent:
                 origin = get_origin(annotation)
                 args = get_args(annotation)
                 
-                # Determine parameter type
                 if origin in (list, tuple):
                     param_type = 'array'
                 else:
                     param_type = type_mapping[annotation]
                 
-                # Get description from docstring if available, with fallback
-                param_desc = next((p.description for p in docstring.params if p.arg_name == name), '')
+                param_desc = next((p.description for p in docstring.params if p.arg_name == name))
                 
-                # Build parameter schema
                 properties[name] = {
                     'type': param_type,
                     'description': param_desc
                 }
                 
-                # Add 'items' field for array types
                 if param_type == 'array' and args:
                     element_type = args[0]
                     if element_type in type_mapping:
                         properties[name]['items'] = {'type': type_mapping[element_type]}
-                    # Optionally handle unsupported element types with a default or skip
                 
-                # Mark as required if no default value
                 if param.default == inspect.Parameter.empty:
                     required.append(name)
 
