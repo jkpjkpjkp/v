@@ -92,7 +92,7 @@ class Agent:
                     'type': 'function',
                     'function': {
                         'name': attr,
-                        'description': docstring.short_description or '',
+                        'description': docstring.short_description + ('\n' + docstring.long_description if docstring.long_description else ''),
                         'parameters': {
                             'type': 'object',
                             'properties': properties,
@@ -100,6 +100,7 @@ class Agent:
                         }
                     }
                 })
+        log = []
         messages = [{'role': 'user', 'content': text}]
         messages.append(openai.chat.completions.create(
             model=model,
@@ -110,10 +111,12 @@ class Agent:
             for x in messages[-1].tool_calls:
                 if x.type == 'function':
                     func = getattr(self, x.function.name)
+                    ret, funclog = func(**json.loads(x.function.arguments))
+                    log.append(funclog)
                     messages.append({
                         'role': 'tool',
                         'name': x.function.name,
-                        'content': func(**json.loads(x.function.arguments)),
+                        'content': ret,
                     })
             messages.append(openai.chat.completions.create(
                 model=model,
@@ -121,16 +124,22 @@ class Agent:
                 tools=tools,
             ).choices[0].message)
         
-        return messages[-1].content
+        log.append(messages)
+        return messages[-1].content, log
     
     def _translate_coord(self, coord: tuple[int, int]) -> Image.Image:
-        return tuple(p * s + o for p, s, o in zip(coord, (self.width, self.height) / 1000, (self.bbox[0], self.bbox[1])))
+        return tuple(p * s + o for p, s, o in zip(coord, (self.width / 1000, self.height / 1000), (self.bbox[0], self.bbox[1])))
 
     def _translate_bbox(self, bbox: tuple[int, int, int, int]) -> Image.Image:
         return (*self._translate_coord(bbox[:2]), *self._translate_coord(bbox[2:]))
 
     def spawn(self, bbox: tuple[int, int, int, int], text: str) -> str:
-        """Spawn a subagent. It will be given a crop of the image and a task to finish.
+        """Spawn a subagent. It will be given a crop of the image and a task to finish. 
+
+        Use this tool liberally, unless you are absolutely very sure.
+        this tool can be used to 
+            1. zoom-in to related area (1 tool call)
+            2. cut the image into e.g. 4 equal pieces and examine each (e.g. 4 tool calls)
         
         Args:
             bbox: x y x y bounding box, coordinates in [0,1000]
