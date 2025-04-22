@@ -1,16 +1,10 @@
-import asyncio
 import base64
-import copy
-import json
 import logging
 import os
 import re
 import threading
 import tenacity
-import uvicorn
-from fastapi import FastAPI, Request
 from fastapi.responses import Response
-from openai import AsyncOpenAI
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

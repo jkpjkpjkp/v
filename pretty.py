@@ -1,6 +1,6 @@
 import base64
 from io import BytesIO
-from PIL import Image, ImageDraw
+from PIL import Image
 from openai import OpenAI
 from docstring_parser import parse
 import math
@@ -9,13 +9,10 @@ from typing import get_args, get_origin
 import os
 import json
 import itertools
-from loguru import logger
 
 os.environ['OPENAI_API_KEY'] = os.environ['OPENROUTER_API_KEY']
 os.environ['OPENAI_BASE_URL'] = 'https://openrouter.ai/api/v1'
 model = 'google/gemini-2.5-flash-preview:thinking'
-import inspect
-from openai import OpenAI
 
 def has_model_param(func):
     """
@@ -62,7 +59,7 @@ format = 'png'
 
 def to_base64(image: Image.Image):
     buffered = BytesIO()
-    image.save(buffered, format='PNG')
+    image.save(buffered, format=format.upper())
     return base64.b64encode(buffered.getvalue()).decode()
 
 class Agent:

@@ -2,7 +2,7 @@ from sqlmodel import Field, Relationship, SQLModel, create_engine, Session, sele
 from sqlalchemy import Column
 from sqlalchemy.types import JSON
 from typing import Dict, Any, Optional
-
+import io
 from data import get_task_by_id
 
 db_name = "data/db.sqlite"
@@ -52,7 +52,7 @@ class Graph(SQLModel, table=True):
             import sys
             old_stdout = sys.stdout
             old_stderr = sys.stderr
-            sys.stdout = sys.stderr = log_output = []
+            sys.stdout = sys.stderr = log_output = io.StringIO()
             ret = graph(question)
             sys.stdout = old_stdout
             sys.stderr = old_stderr
@@ -66,7 +66,7 @@ class Graph(SQLModel, table=True):
             with Session(_engine) as session:
                 run = Run(
                     graph_id=self.id,
-                    task_id=task_id,  # Assuming question is task_id, adjust if needed
+                    task_id=task_id,
                     log=log_data,
                     final_output=ret,
                     correct=False  # You'll need to implement correctness checking
@@ -100,3 +100,13 @@ class Run(SQLModel, table=True):
 _engine = create_engine(f"sqlite:///{db_name}")
 SQLModel.metadata.create_all(_engine)
 
+
+def get_graph_from_a_file(path: str):
+    with open(path, "r") as f:
+        graph = f.read()
+    graph = Graph(graph=graph)
+    with Session(_engine) as session:
+        session.add(graph)
+        session.commit()
+        session.refresh(graph)
+    return graph

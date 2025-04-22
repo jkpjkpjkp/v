@@ -9,7 +9,6 @@ from typing import get_args, get_origin
 import os
 import json
 import itertools
-from loguru import logger
 
 os.environ['OPENAI_API_KEY'] = os.environ['OPENROUTER_API_KEY']
 os.environ['OPENAI_BASE_URL'] = 'https://openrouter.ai/api/v1'
@@ -196,7 +195,6 @@ class Agent:
 
 from data.data import get_task_data
 if __name__ == '__main__':
-    from ngkx import LoggingAgent
     task = get_task_data('37_3')
     agent = Agent(task['image'])
     print(task['image'].width, task['image'].height)
