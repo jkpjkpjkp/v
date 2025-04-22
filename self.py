@@ -8,6 +8,7 @@ import inspect
 from typing import get_args, get_origin
 import os
 import json
+import itertools
 
 os.environ['OPENAI_API_KEY'] = os.environ['OPENROUTER_API_KEY']
 os.environ['OPENAI_BASE_URL'] = 'https://openrouter.ai/api/v1'
@@ -128,10 +129,13 @@ class Agent:
         return messages[-1].content, log
     
     def _translate_coord(self, coord: tuple[int, int]) -> Image.Image:
-        return tuple(p * s + o for p, s, o in zip(coord, (self.width / 1000, self.height / 1000), (self.bbox[0], self.bbox[1])))
+        return tuple(int(p * s + o) for p, s, o in zip(coord, (self.width / 1000, self.height / 1000), (self.bbox[0], self.bbox[1])))
 
     def _translate_bbox(self, bbox: tuple[int, int, int, int]) -> Image.Image:
-        return (*self._translate_coord(bbox[:2]), *self._translate_coord(bbox[2:]))
+        return tuple(itertools.chain(
+            (int(p * s + o) for p, s, o in zip(bbox[:2], (self.width / 1000, self.height / 1000), (self.bbox[0], self.bbox[1]))),
+            (math.ceil(p * s + o) for p, s, o in zip(bbox[2:], (self.width / 1000, self.height / 1000), (self.bbox[0], self.bbox[1])))
+        ))
 
     def spawn(self, bbox: tuple[int, int, int, int], text: str) -> str:
         """Spawn a subagent. It will be given a crop of the image and a task to finish. 
