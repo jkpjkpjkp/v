@@ -61,3 +61,5 @@ def get_task_data(task_id):
     row['question'] = row['question_text']
     
     return row
+
+get_task_by_id = get_task_data

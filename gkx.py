@@ -3,7 +3,7 @@ from sqlalchemy import Column
 from sqlalchemy.types import JSON
 from typing import Dict, Any, Optional
 import io
-from data import get_task_by_id
+from data.data import get_task_by_id
 
 db_name = "data/db.sqlite"
 
@@ -69,7 +69,7 @@ class Graph(SQLModel, table=True):
                     task_id=task_id,
                     log=log_data,
                     final_output=ret,
-                    correct=False  # You'll need to implement correctness checking
+                    score=1 - abs(ret - task['answer']) / task['answer']
                 )
                 session.add(run)
                 session.commit()
@@ -90,7 +90,7 @@ class Run(SQLModel, table=True):
     task_id: str = Field(primary_key=True)
     log: Dict[str, Any] = Field(sa_column=Column(JSON))
     final_output: str | None = Field(default=None)
-    correct: bool
+    score: float
     graph: Graph = Relationship(back_populates="runs")
 
     @property
@@ -110,3 +110,7 @@ def get_graph_from_a_file(path: str):
         session.commit()
         session.refresh(graph)
     return graph
+
+if __name__ == '__main__':
+    graph = get_graph_from_a_file('pretty.py')
+    graph.run('37_2')
