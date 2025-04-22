@@ -38,24 +38,43 @@ class Graph(SQLModel, table=True):
             return 1.0 if not runs else sum(runs) / len(runs)
 
 
-    def run(self, image, question):
+    def run(self, task_id):
         namespace = {'__name__': '__exec__', '__package__': None}
-        
+        task = get_task_by_id(task_id)
+        image = task['image']
+        question = task['question']
         try:
             exec(self.graph, namespace)
             with open('ngkx.py') as f:
                 exec(f.read(), namespace)
             graph_class = namespace.get("LoggingAgent")
             graph = graph_class(image)
-            # capture stdout and stderr
             import sys
             old_stdout = sys.stdout
             old_stderr = sys.stderr
-            sys.stdout = sys.stderr = a_log = []
+            sys.stdout = sys.stderr = log_output = []
             ret = graph(question)
             sys.stdout = old_stdout
             sys.stderr = old_stderr
-            return ret, a_log
+            
+            log_data = {
+                'stdout': log_output.getvalue(),
+                'return_value': ret
+            }
+            
+            # Create and store Run object
+            with Session(_engine) as session:
+                run = Run(
+                    graph_id=self.id,
+                    task_id=task_id,  # Assuming question is task_id, adjust if needed
+                    log=log_data,
+                    final_output=ret,
+                    correct=False  # You'll need to implement correctness checking
+                )
+                session.add(run)
+                session.commit()
+
+
         except ModuleNotFoundError as e:
             print(f"ModuleNotFoundError: {e}")
             raise
