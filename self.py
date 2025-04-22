@@ -22,6 +22,7 @@ def to_base64(image: Image.Image):
 
 class Agent:
     def __init__(self, image, bbox=None):
+        print(bbox)
         self.image = image
         self.bbox = bbox or (0, 0, image.width, image.height)
     
@@ -36,6 +37,7 @@ class Agent:
         return self.image.crop(self.bbox)
 
     def __call__(self, text):
+        print(text)
         tools = []
         type_mapping = {
             str: 'string',
@@ -108,6 +110,7 @@ class Agent:
             messages=messages + [{'role': 'user', 'content': [{'type': 'image_url', 'image_url': {'url': f'data:image/{format};base64,' + to_base64(self.display)}}]}],
             tools=tools,
         ).choices[0].message)
+        print(messages[-1])
         while messages[-1].tool_calls:
             for x in messages[-1].tool_calls:
                 if x.type == 'function':
@@ -124,6 +127,7 @@ class Agent:
                 messages=messages + [{'role': 'user', 'content': [{'type': 'image_url', 'image_url': {'url': f'data:image/{format};base64,' + to_base64(self.display)}}]}],
                 tools=tools,
             ).choices[0].message)
+            print(messages[-1])
         
         log.append(messages)
         return messages[-1].content, log
@@ -132,10 +136,15 @@ class Agent:
         return tuple(int(p * s + o) for p, s, o in zip(coord, (self.width / 1000, self.height / 1000), (self.bbox[0], self.bbox[1])))
 
     def _translate_bbox(self, bbox: tuple[int, int, int, int]) -> Image.Image:
-        return tuple(itertools.chain(
+        print (bbox)
+        print (self.width, self.height)
+        print(self.bbox[0], self.bbox[1])
+        ret = tuple(itertools.chain(
             (int(p * s + o) for p, s, o in zip(bbox[:2], (self.width / 1000, self.height / 1000), (self.bbox[0], self.bbox[1]))),
             (math.ceil(p * s + o) for p, s, o in zip(bbox[2:], (self.width / 1000, self.height / 1000), (self.bbox[0], self.bbox[1])))
         ))
+        print(ret)
+        return ret
 
     def spawn(self, bbox: tuple[int, int, int, int], text: str) -> str:
         """Spawn a subagent. It will be given a crop of the image and a task to finish. 
@@ -145,11 +154,19 @@ class Agent:
             1. zoom-in to related area (1 tool call)
             2. cut the image into e.g. 4 equal pieces and examine each (e.g. 4 tool calls)
         
+        Note, however, that calling with bbox = [0, 0, 1000, 1000] is pointless, for then the subagent will see the exact same image as you see. 
+        
         Args:
             bbox: x y x y bounding box, coordinates in [0,1000]
             text: instruction for the subagent
         """
-        return Agent(self.image, self._translate_bbox(bbox))(text)
+        bbox = self._translate_bbox(bbox)
+        assert bbox[0] >= self.bbox[0]
+        assert bbox[1] >= self.bbox[1]
+        assert bbox[2] <= self.bbox[2]
+        assert bbox[3] <= self.bbox[3]
+        assert not (bbox == self.bbox)
+        return Agent(self.image, bbox)(text)
 
     def _draw(self, points: list[tuple[int, int]], color: str = 'red', width: int = 1):
         """Draw line segments on the image.
@@ -170,4 +187,5 @@ from data.data import get_task_data
 if __name__ == '__main__':
     task = get_task_data('37_3')
     agent = Agent(task['image'])
+    print(task['image'].width, task['image'].height)
     print(agent(task['question']))
