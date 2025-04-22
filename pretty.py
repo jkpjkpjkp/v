@@ -1,14 +1,14 @@
-import base64
-from io import BytesIO
+# import base64
+# from io import BytesIO
 from PIL import Image
 from openai import OpenAI
-from docstring_parser import parse
-import math
-import inspect
-from typing import get_args, get_origin
+# from docstring_parser import parse
+# import math
+# import inspect
+# from typing import get_args, get_origin
 import os
-import json
-import itertools
+# import json
+# import itertools
 
 os.environ['OPENAI_API_KEY'] = os.environ['OPENROUTER_API_KEY']
 os.environ['OPENAI_BASE_URL'] = 'https://openrouter.ai/api/v1'
@@ -204,9 +204,9 @@ class Agent:
         return type(self)(self.image, bbox)(text)
 
 
-from data.data import get_task_data
-if __name__ == '__main__':
-    task = get_task_data('37_3')
-    agent = Agent(task['image'])
-    print(task['image'].width, task['image'].height)
-    print(agent(task['question']))
+# from data.data import get_task_data
+# if __name__ == '__main__':
+#     task = get_task_data('37_3')
+#     agent = Agent(task['image'])
+#     print(task['image'].width, task['image'].height)
+#     print(agent(task['question']))

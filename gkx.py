@@ -39,14 +39,24 @@ class Graph(SQLModel, table=True):
 
 
     def run(self, task_id):
-        namespace = {'__name__': '__exec__', '__package__': None}
+        # Create a new namespace for each execution
+        namespace = {
+            '__name__': '__exec__',
+            '__package__': None,
+            'SQLModel': SQLModel,  # Add required imports to namespace
+            'Field': Field,
+            'Relationship': Relationship,
+            'Column': Column,
+            'JSON': JSON,
+            'Optional': Optional,
+            'Dict': Dict,
+            'Any': Any
+        }
         task = get_task_by_id(task_id)
         image = task['image']
         question = task['question']
         try:
             exec(self.graph, namespace)
-            with open('ngkx.py') as f:
-                exec(f.read(), namespace)
             graph_class = namespace.get("LoggingAgent")
             graph = graph_class(image)
             import sys
@@ -112,5 +122,5 @@ def get_graph_from_a_file(path: str):
     return graph
 
 if __name__ == '__main__':
-    graph = get_graph_from_a_file('pretty.py')
+    graph = get_graph_from_a_file('tmp.py')
     graph.run('37_2')
