@@ -6,8 +6,12 @@ from docstring_parser import parse
 import math
 import inspect
 from typing import get_args, get_origin
+import os
+import json
 
-model = 'gemini-2.0-flash'
+os.environ['OPENAI_API_KEY'] = os.environ['OPENROUTER_API_KEY']
+os.environ['OPENAI_BASE_URL'] = 'https://openrouter.ai/api/v1'
+model = 'google/gemini-2.5-flash-preview:thinking'
 format = 'png'
 
 def to_base64(image: Image.Image):
@@ -109,7 +113,7 @@ class Agent:
                     messages.append({
                         'role': 'tool',
                         'name': x.function.name,
-                        'content': func(**x.function.arguments),
+                        'content': func(**json.loads(x.function.arguments)),
                     })
             messages.append(openai.chat.completions.create(
                 model=model,
