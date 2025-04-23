@@ -59,7 +59,7 @@ def get_task_data(task_id):
     # image_data = images[0]['bytes']
     row['image'] = merge_images_side_by_side(images)
     row['question'] = row['question_text']
-    
+    row['answer'] = row['question_answer']
     return row
 
 get_task_by_id = get_task_data

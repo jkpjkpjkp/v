@@ -29,19 +29,6 @@ class Graph(SQLModel, table=True):
             ).all()
 
     @property
-    def width(self):
-        return self.bbox[2] - self.bbox[0]
-    @property
-    def height(self):
-        return self.bbox[3] - self.bbox[1]
-    @property
-    def display(self):
-        return self.image.crop(self.bbox)
-    @property
-    def openai_image(self):
-        return [{'role': 'user', 'content': [{'type': 'image_url', 'image_url': {'url': f'data:image/{format};base64,' + to_base64(self.display)}}]}]
-
-    @property
     def score(self) -> float:
         with Session(_engine) as session:
             runs = session.exec(
@@ -81,11 +68,10 @@ class Graph(SQLModel, table=True):
             sys.stderr = old_stderr
             
             log_data = {
-                'stdout': log_output.getvalue(),
-                'return_value': ret
+                'log': log_output.getvalue(),
+                'final_answer': ret
             }
             
-            # Create and store Run object
             with Session(_engine) as session:
                 run = Run(
                     graph_id=self.id,
@@ -102,7 +88,7 @@ class Graph(SQLModel, table=True):
             print(f"ModuleNotFoundError: {e}")
             raise
         except Exception:
-            print("--- Error reading graph code ---")
+            print("--- Error with graph code ---")
             print(self.graph)
             print("--- error ---")
             raise

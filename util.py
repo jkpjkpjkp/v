@@ -7,7 +7,6 @@ import math
 import inspect
 from typing import get_args, get_origin
 import os
-import json
 import itertools
 os.environ['OPENAI_API_KEY'] = os.environ['OPENROUTER_API_KEY']
 os.environ['OPENAI_BASE_URL'] = 'https://openrouter.ai/api/v1'

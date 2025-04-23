@@ -1,15 +1,5 @@
-import base64
-from io import BytesIO
-from PIL import Image
-from openai import OpenAI
-from docstring_parser import parse
-import math
-import inspect
-from typing import get_args, get_origin
-import os
 import json
-import itertools
-from util import client, to_base64, PrepareToolClass
+from util import client, PrepareToolClass
 
 
 class Agent(PrepareToolClass):
@@ -19,7 +9,7 @@ class Agent(PrepareToolClass):
         self.bbox = bbox or (0, 0, image.width, image.height)
     
     def __call__(self, text):
-        tools = self._prepare_tools()  # defined in PrepareToolClass, reads all method declarations and docstring in self and parse to openai tool format. 
+        tools = self._prepare_tools()  # defined in PrepareToolClass, reads all method in the current class, parse their type hints and docstringin into openai tool format. 
         messages = [{'role': 'user', 'content': text}]
         messages.append(client.chat.completions.create(
             messages=messages + self.openai_image,
@@ -39,14 +29,14 @@ class Agent(PrepareToolClass):
                         'content': func(**json.loads(x.function.arguments)),
                     })
             messages.append(client.chat.completions.create(
-                messages=messages + self.openai_image, # 'openai_image' property defined in PrepareToolClass
+                messages=messages + self.openai_image, # defined in PrepareToolClass, current image crop as openai usermessage
             ).choices[0].message)
         
         return messages[-1].content
     
 
     def spawn(self, bbox: tuple[int, int, int, int], text: str) -> str:
-        """DO NOT CALL THIS WITH [0, 0, 1000, 1000]. Spawn a subagent. It will be given a crop of the image and a task to finish. 
+        """Spawn a subagent. It will be given a crop of the image and a task to finish. 
 
         Use this tool liberally, unless you are absolutely very sure.
         this tool can be used to 
@@ -61,13 +51,13 @@ class Agent(PrepareToolClass):
         """
         if bbox == [0, 0, 1000, 1000]:
             raise ValueError('bbox is [0, 0, 1000, 1000]')
-        bbox = self._translate_bbox(bbox) # defined in PrepareToolClass, converts bbox from [0,1000] to pil pixel coordinates
+        bbox = self._translate_bbox(bbox) # defined in PrepareToolClass, converts from normalized (0 to 1000) to PIL pixel coordinates
         return type(self)(self.image, bbox)(text)
 
 
-from data.data import get_task_data
+from data.data import get_task_by_id
 if __name__ == '__main__':
-    task = get_task_data('37_3')
+    task = get_task_by_id('37_3')
     agent = Agent(task['image'])
     print(task['image'].width, task['image'].height)
     print(agent(task['question']))
