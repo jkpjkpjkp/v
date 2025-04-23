@@ -121,6 +121,11 @@ class Run(SQLModel, table=True):
 _engine = create_engine(f"sqlite:///{db_name}")
 SQLModel.metadata.create_all(_engine)
 
+def put(x):
+    with Session(_engine) as session:
+        session.add(x)
+        session.commit()
+        return x
 
 def get_graph_from_a_file(path: str):
     with open(path, "r") as f:
@@ -166,7 +171,7 @@ def get_high_variation_task(k=1):
         return ret[:k]
     with Session(_engine) as session:
         ret.extend(session.exec(select(Run.task_id).group_by(Run.task_id).order_by(func.std(Run.correct).desc()).limit(k - len(ret))).all())
-    return ret
+    return ret[0] if k == 1 else ret
 
 
 def db_session(func):
@@ -181,10 +186,10 @@ def db_session(func):
 def optimize(run: Run):
     import openai
     from stocholm_prompt import WORKFLOW_OPTIMIZE_PROMPT, WORKFLOW_INPUT, OPERATOR_DESCRIPTION
-    from ugly import compute_probabilities, format_experience
+    from ugly import compute_probabilities, format_experience, format_log, xml_extract
     graph = run.graph
     children = graph.children
-    openai.chat.completions.create(
+    response = openai.chat.completions.create(
         messages=[
             {'role': 'user', 'content': WORKFLOW_OPTIMIZE_PROMPT.format(
                 experience=WORKFLOW_INPUT.format(
@@ -197,5 +202,16 @@ def optimize(run: Run):
             )}
         ]
     )
+    class Opti(BaseModel):
+        modification: str = Field(..., description='summarize the modification you plan to make')
+        agent: str = Field(..., description='the modified agent.py')
+    ret = xml_extract(response.choices[0].message.content, Opti)
+    graph = Graph(graph=ret.agent, father=graph, change=ret.modification)
+    graph = put(graph)
+
+    task = get_high_variation_task()
+    result = graph.run(task)
+
+    
 
 

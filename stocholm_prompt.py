@@ -17,7 +17,7 @@ Here is a graph and the corresponding prompt (prompt only related to the custom 
     <experience>{experience}</experience>
     <modification>(such as:add /delete /modify / ...)</modification>
     <score>{score}</score>
-    <agent.py>{agent}</agent.py>
+    <agent>{agent}</agent>
 </sample>
 Below are the logs of some results with the aforementioned Graph that performed well but encountered errors, which can be used as references for optimization:
 {log}

@@ -3,6 +3,8 @@ import numpy as np
 from loguru import logger
 import json
 from PIL import Image
+import re
+from typing import Dict, Any
 
 def log_method_call(func):
     """Decorator to log method calls, arguments, and return values."""
@@ -51,3 +53,74 @@ def format_experience(graph):
     return experience
 
 
+def format_log(obj):
+    if isinstance(obj, dict):
+        if "choices" in obj and isinstance(obj["choices"], list) and len(obj["choices"]) > 0 and isinstance(obj["choices"][0], dict):
+            choice = obj["choices"][0]
+            if "text" in choice:
+                return choice["text"]
+            elif "message" in choice and isinstance(choice["message"], dict) and "content" in choice["message"]:
+                return choice["message"]["content"]
+            else:
+                return "Unknown response format"
+        else:
+            return {k: format_log(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [format_log(elem) for elem in obj]
+    else:
+        return obj
+
+
+
+async def xml_extract(self, content: str, pydantic_model) -> Dict[str, Any]:
+    field_names = pydantic_model.get_field_names()
+    field_types = pydantic_model.get_field_types()
+    extracted_data = {}
+    for field_name in field_names:
+        pattern = rf"<{field_name}>((?:(?!<{field_name}>).)*?)</{field_name}>"
+        match = re.search(pattern, content, re.DOTALL)
+        if match:
+            raw_value = match.group(1).strip()
+            field_type = field_types.get(field_name)
+
+            if field_type == str:
+                pattern = r"```python(.*?)```"
+                match = re.search(pattern, raw_value, re.DOTALL)
+                if match:
+                    raw_value = '\n'.join(match.groups())
+                extracted_data[field_name] = raw_value
+            elif field_type == int:
+                try:
+                    extracted_data[field_name] = int(raw_value)
+                except ValueError:
+                    extracted_data[field_name] = 0
+            elif field_type == bool:
+                extracted_data[field_name] = raw_value.lower() in ("true", "yes", "1", "on", "True")
+            elif field_type == list:
+                try:
+                    extracted_data[field_name] = eval(raw_value)
+                    if not isinstance(extracted_data[field_name], list):
+                        raise ValueError
+                except:
+                    extracted_data[field_name] = []
+            elif field_type == dict:
+                try:
+                    extracted_data[field_name] = eval(raw_value)
+                    if not isinstance(extracted_data[field_name], dict):
+                        raise ValueError
+                except:
+                    extracted_data[field_name] = {}
+            else:
+                extracted_data[field_name] = raw_value
+        else:
+            pattern = rf"^(.*?)</{field_name}>"
+            match = re.search(pattern, content, re.DOTALL)
+            if match:
+                raw_value = match.group(1).strip()
+                extracted_data[field_name] = raw_value
+            else:
+                print(content)
+                print(field_names)
+                print(field_types)
+
+    return extracted_data
