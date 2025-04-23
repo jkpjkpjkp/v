@@ -1,12 +1,8 @@
 from sqlmodel import Field, Relationship, SQLModel, create_engine, Session, select
-from sqlalchemy import Column
-from sqlalchemy.types import JSON
-from typing import Dict, Any, Optional
-import io
-from sqlmodel import Field, Relationship, SQLModel, create_engine, Session, select
 from sqlalchemy import Column, func
 from sqlalchemy.types import JSON
 from typing import Dict, Any, Optional
+import io
 import hashlib
 import os
 import sys
@@ -14,6 +10,7 @@ import functools
 from string import Formatter
 from PIL import Image
 import itertools
+import re
 from data.data import get_task_by_id, get_all_task_ids
 from pydantic import BaseModel
 
@@ -44,7 +41,7 @@ class Graph(SQLModel, table=True):
     def score(self) -> float:
         with Session(_engine) as session:
             runs = session.exec(
-                select(Run.correct)
+                select(Run.score)
                 .where(Run.graph_id == self.id)
             ).all()
             return 1.0 if not runs else sum(runs) / len(runs)
@@ -66,6 +63,7 @@ class Graph(SQLModel, table=True):
         task = get_task_by_id(task_id)
         image = task['image']
         question = task['question']
+        log_output = None
         try:
             exec(self.graph, namespace)
             with open('ngkx.py', 'r') as f:
@@ -85,6 +83,9 @@ class Graph(SQLModel, table=True):
                 'final_answer': ret
             }
             print(log_data)
+
+            match = re.search(r'{(.*?)}', ret)
+            answer = match.group(1) if match else ret
             
             with Session(_engine) as session:
                 run = Run(
@@ -92,7 +93,7 @@ class Graph(SQLModel, table=True):
                     task_id=task_id,
                     log=log_data,
                     final_output=ret,
-                    score=(ret == task['answer']) or max(0, 0.5 - abs(ret - task['answer']) / task['answer'])
+                    score=(answer == task['answer']) or max(0, 0.5 - abs(float(answer) - float(task['answer'])) / (float(task['answer']) + 0.01))
                 )
                 session.add(run)
                 session.commit()
@@ -102,8 +103,9 @@ class Graph(SQLModel, table=True):
             print(f"ModuleNotFoundError: {e}")
             raise
         except Exception:
-            print("--- Error with graph code ---")
-            print(self.graph)
+            print("--- Error running graph ---")
+            if log_output:
+                print(log_output.getvalue())
             print("--- error ---")
             raise
 
@@ -140,10 +142,10 @@ def get_graph_from_a_file(path: str):
         session.refresh(graph)
     return graph
 
-if __name__ == '__main__':
-    graph = get_graph_from_a_file('pretty.py')
-    graph.run('37_2')
-    exit(0)
+# if __name__ == '__main__':
+#     graph = get_graph_from_a_file('pretty.py')
+#     graph.run('37_2')
+#     exit(0)
 
 
 def get_strongest_graph(k: int):
@@ -157,7 +159,7 @@ def get_strongest_graph(k: int):
             select(Graph)
             .join(Run)
             .group_by(Graph.id)
-            .order_by(func.avg(Run.correct).desc())
+            .order_by(func.avg(Run.score).desc())
             .limit(remaining)
         )
         graphs_with_runs = session.exec(stmt_with_runs).all()
@@ -174,7 +176,7 @@ def get_high_variation_task(k=1):
     if len(ret) >= k:
         return ret[:k]
     with Session(_engine) as session:
-        ret.extend(session.exec(select(Run.task_id).group_by(Run.task_id).order_by(func.std(Run.correct).desc()).limit(k - len(ret))).all())
+        ret.extend(session.exec(select(Run.task_id).group_by(Run.task_id).order_by(func.std(Run.score).desc()).limit(k - len(ret))).all())
     return ret[0] if k == 1 else ret
 
 
@@ -182,7 +184,7 @@ def db_session(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         with Session(_engine) as session:
-            return func(*args, **kwargs, session=session)
+            return func(*args, **kwargs)
     return wrapper
 
 
@@ -192,8 +194,8 @@ def optimize(run: Run):
     from stocholm_prompt import WORKFLOW_OPTIMIZE_PROMPT, WORKFLOW_INPUT, OPERATOR_DESCRIPTION
     from ugly import compute_probabilities, format_experience, format_log, xml_extract
     graph = run.graph
-    children = graph.children
     response = openai.chat.completions.create(
+        model = 'google/gemini-2.5-flash-preview',
         messages=[
             {'role': 'user', 'content': WORKFLOW_OPTIMIZE_PROMPT.format(
                 experience=WORKFLOW_INPUT.format(
@@ -202,7 +204,6 @@ def optimize(run: Run):
                     agent=graph.graph,
                     log=format_log(run.log)
                 ),
-                operators='\n'.join(OPERATOR_DESCRIPTION.format(**x) for x in openai.ChatCompletionMessageToolCall.function_schema()),
             )}
         ]
     )
@@ -217,5 +218,10 @@ def optimize(run: Run):
     result = graph.run(task)
 
 
+if __name__ == '__main__':
+    with Session(_engine) as session:
+        run = session.exec(select(Run).order_by(Run.score.desc())).first()
+        optimize(run)
+    exit(0)
 
 

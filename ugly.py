@@ -38,8 +38,7 @@ def compute_probabilities(scores, alpha=0.2, lambda_=0.3):
         mixed_prob = mixed_prob / total_prob
     return mixed_prob
 
-from gkx import db_session
-@db_session
+
 def format_experience(graph):
     failures = [x for x in graph.children if x.score <= graph.score]
     successes = [x for x in graph.children if x.score > graph.score]
