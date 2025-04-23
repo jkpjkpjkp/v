@@ -155,7 +155,6 @@ def get_strongest_graph(k: int):
         return graphs_with_zero_runs + graphs_with_runs
 
 
-
 def get_high_variation_task(k=1):
     ret = []
     with Session(_engine) as session:
@@ -170,6 +169,33 @@ def get_high_variation_task(k=1):
     return ret
 
 
-def optimize():
+def db_session(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        with Session(_engine) as session:
+            return func(*args, **kwargs, session=session)
+    return wrapper
+
+
+@db_session
+def optimize(run: Run):
     import openai
-    
+    from stocholm_prompt import WORKFLOW_OPTIMIZE_PROMPT, WORKFLOW_INPUT, OPERATOR_DESCRIPTION
+    from ugly import compute_probabilities, format_experience
+    graph = run.graph
+    children = graph.children
+    openai.chat.completions.create(
+        messages=[
+            {'role': 'user', 'content': WORKFLOW_OPTIMIZE_PROMPT.format(
+                experience=WORKFLOW_INPUT.format(
+                    experience=format_experience(graph),
+                    score=graph.score,
+                    agent=graph.graph,
+                    log=format_log(run.log)
+                ),
+                operators='\n'.join(OPERATOR_DESCRIPTION.format(**x) for x in openai.ChatCompletionMessageToolCall.function_schema()),
+            )}
+        ]
+    )
+
+
