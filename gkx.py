@@ -15,6 +15,7 @@ from string import Formatter
 from PIL import Image
 import itertools
 from data.data import get_task_by_id, get_all_task_ids
+from pydantic import BaseModel
 
 db_name = "data/db.sqlite"
 
@@ -83,6 +84,7 @@ class Graph(SQLModel, table=True):
                 'log': log_output.getvalue(),
                 'final_answer': ret
             }
+            print(log_data)
             
             with Session(_engine) as session:
                 run = Run(
@@ -90,7 +92,7 @@ class Graph(SQLModel, table=True):
                     task_id=task_id,
                     log=log_data,
                     final_output=ret,
-                    score=1 - abs(ret - task['answer']) / task['answer']
+                    score=(ret == task['answer']) or max(0, 0.5 - abs(ret - task['answer']) / task['answer'])
                 )
                 session.add(run)
                 session.commit()
@@ -104,7 +106,7 @@ class Graph(SQLModel, table=True):
             print(self.graph)
             print("--- error ---")
             raise
-        
+
 
 class Run(SQLModel, table=True):
     graph_id: int = Field(primary_key=True, foreign_key="graph.id")
@@ -120,6 +122,7 @@ class Run(SQLModel, table=True):
 
 _engine = create_engine(f"sqlite:///{db_name}")
 SQLModel.metadata.create_all(_engine)
+
 
 def put(x):
     with Session(_engine) as session:
@@ -137,9 +140,10 @@ def get_graph_from_a_file(path: str):
         session.refresh(graph)
     return graph
 
-# if __name__ == '__main__':
-#     graph = get_graph_from_a_file('pretty.py')
-#     graph.run('37_2')
+if __name__ == '__main__':
+    graph = get_graph_from_a_file('pretty.py')
+    graph.run('37_2')
+    exit(0)
 
 
 def get_strongest_graph(k: int):
@@ -212,6 +216,6 @@ def optimize(run: Run):
     task = get_high_variation_task()
     result = graph.run(task)
 
-    
+
 
 

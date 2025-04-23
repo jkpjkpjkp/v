@@ -63,3 +63,6 @@ def get_task_data(task_id):
     return row
 
 get_task_by_id = get_task_data
+
+def get_all_task_ids():
+    return df['question_id'].to_list()
