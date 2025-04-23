@@ -1,4 +1,5 @@
-from gkx import Agent
+import numpy as np
+
 class LoggingAgent(Agent):
     def __getattribute__(self, name):
         attr = super().__getattribute__(name)
@@ -13,3 +14,5 @@ def log_method_call(method):
         print(f"{method.__name__} returned {result}")
         return result
     return wrapper
+
+
