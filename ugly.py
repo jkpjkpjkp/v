@@ -1,6 +1,7 @@
 import functools
 import numpy as np
 from loguru import logger
+
 def log_method_call(func):
     """Decorator to log method calls, arguments, and return values."""
     @functools.wraps(func)

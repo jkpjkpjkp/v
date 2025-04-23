@@ -3,7 +3,18 @@ from sqlalchemy import Column
 from sqlalchemy.types import JSON
 from typing import Dict, Any, Optional
 import io
-from data.data import get_task_by_id
+from sqlmodel import Field, Relationship, SQLModel, create_engine, Session, select
+from sqlalchemy import Column, func
+from sqlalchemy.types import JSON
+from typing import Dict, Any, Optional
+import hashlib
+import os
+import sys
+import functools
+from string import Formatter
+from PIL import Image
+import itertools
+from data.data import get_task_by_id, get_all_task_ids
 
 db_name = "data/db.sqlite"
 
@@ -122,8 +133,39 @@ def get_graph_from_a_file(path: str):
         session.refresh(graph)
     return graph
 
-if __name__ == '__main__':
-    graph = get_graph_from_a_file('pretty.py')
-    graph.run('37_2')
+# if __name__ == '__main__':
+#     graph = get_graph_from_a_file('pretty.py')
+#     graph.run('37_2')
 
 
+def get_strongest_graph(k: int):
+    with Session(_engine) as session:
+        stmt_zero_runs = select(Graph).where(~Graph.runs.any()).limit(k)
+        graphs_with_zero_runs = session.exec(stmt_zero_runs).all()
+        if len(graphs_with_zero_runs) >= k:
+            return graphs_with_zero_runs[:k]
+        remaining = k - len(graphs_with_zero_runs)
+        stmt_with_runs = (
+            select(Graph)
+            .join(Run)
+            .group_by(Graph.id)
+            .order_by(func.avg(Run.correct).desc())
+            .limit(remaining)
+        )
+        graphs_with_runs = session.exec(stmt_with_runs).all()
+        return graphs_with_zero_runs + graphs_with_runs
+
+
+
+def get_high_variation_task(k=1):
+    ret = []
+    with Session(_engine) as session:
+        run_task_ids = session.exec(select(Run.task_id)).all()
+        for task_id in get_all_task_ids():
+            if task_id not in run_task_ids:
+                ret.append(task_id)
+    if len(ret) >= k:
+        return ret[:k]
+    with Session(_engine) as session:
+        ret.extend(session.exec(select(Run.task_id).group_by(Run.task_id).order_by(func.std(Run.correct).desc()).limit(k - len(ret))).all())
+    return ret

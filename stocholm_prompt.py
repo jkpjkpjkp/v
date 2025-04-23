@@ -8,10 +8,8 @@ optimizing, you can incorporate critical thinking methods like review, revise, e
 Python's loops (for, while, list comprehensions), conditional statements (if-elif-else, ternary operators), 
 or machine learning techniques (e.g., linear regression, decision trees, neural networks, clustering). The graph 
 complexity should not exceed 10. Use logical and control flow (IF-ELSE, loops) for a more enhanced graphical representation.
-Output the modified graph and all the necessary Prompts in prompt.py (if needed).
-The prompt you need to generate is only the one used in `XXX_PROMPT` within Custom. Other methods already have built-in prompts and are prohibited from being generated. Only generate those needed for use in `prompts`; please remove any unused prompts in `prompts`.
-the generated prompt must not contain any placeholders.
-Considering information loss, complex graphs may yield better results, but insufficient information transmission can omit the solution. It's crucial to include necessary context during the process."""
+Output the modified code under same setting and class name (class Agent(PrepareToolClass): ).
+Complex agents may yield better results, but take into consideration llm's limited capabilities and potential information loss. It's crucial to include necessary context."""
 
 WORKFLOW_INPUT = """
 Here is a graph and the corresponding prompt (prompt only related to the custom method) that performed excellently in a previous iteration (maximum score is 1). You must make further optimizations and improvements based on this graph. The modified graph must differ from the provided example, and the specific differences should be noted within the <modification>xxx</modification> section.\n

@@ -29,7 +29,7 @@ class Agent(PrepareToolClass):
                         'content': func(**json.loads(x.function.arguments)),
                     })
             messages.append(client.chat.completions.create(
-                messages=messages + self.openai_image, # defined in PrepareToolClass, current image crop as openai usermessage
+                messages=messages + self.openai_image,  # defined in PrepareToolClass, current image crop as openai usermessage
             ).choices[0].message)
         
         return messages[-1].content
@@ -44,14 +44,14 @@ class Agent(PrepareToolClass):
             2. cut the image into pieces and examine each (many tool calls)
         
         DO NOT CALL THIS WITH [0, 0, 1000, 1000]. in which case directly answer. 
-            
+
         Args:
             bbox: x y x y bounding box, coordinates in [0,1000]
             text: instruction for the subagent
         """
         if bbox == [0, 0, 1000, 1000]:
             raise ValueError('bbox is [0, 0, 1000, 1000]')
-        bbox = self._translate_bbox(bbox) # defined in PrepareToolClass, converts from normalized (0 to 1000) to PIL pixel coordinates
+        bbox = self._translate_bbox(bbox)  # defined in PrepareToolClass, converts from normalized (0 to 1000) to PIL pixel coordinates
         return type(self)(self.image, bbox)(text)
 
 
