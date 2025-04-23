@@ -1,6 +1,8 @@
 import functools
 import numpy as np
 from loguru import logger
+import json
+from PIL import Image
 
 def log_method_call(func):
     """Decorator to log method calls, arguments, and return values."""
@@ -34,3 +36,35 @@ def compute_probabilities(scores, alpha=0.2, lambda_=0.3):
         mixed_prob = mixed_prob / total_prob
     return mixed_prob
 
+
+def format_experience(graph):
+    failures = [x for x in graph.children if x.score <= graph.score]
+    successes = [x for x in graph.children if x.score > graph.score]
+    experience = f"Original Score: {graph.score}\n"
+    experience += "These are some conclusions drawn from experience:\n\n"
+    for failure in failures:
+        experience += f"-Absolutely prohibit {failure.modification} (Score: {failure.score})\n"
+    for success in successes:
+        experience += f"-Absolutely prohibit {success.modification} \n"
+    experience += "\n\nNote: Take into account past failures and avoid repeating the same mistakes, as these failures indicate that these approaches are ineffective. You must fundamentally change your way of thinking, rather than simply using more advanced Python syntax like for, if, else, etc., or modifying the prompt."
+    return experience
+
+
+def format_log(data):
+    def clean_dict(d):
+        if isinstance(d, dict):
+            return {k: clean_dict(v) for k, v in d.items() if not isinstance(v, bytes)}
+        elif isinstance(d, (list, tuple)):
+            return [clean_dict(x) for x in d if not isinstance(x, bytes)]
+        elif isinstance(d, Image.Image):
+            return f"<Image size={d.size} mode={d.mode}>"
+        return d
+    log = ""
+    for run in data:
+        sample = {
+            "log": clean_dict(run.log),
+            "final_output": run.final_output,
+            "task": clean_dict(run.task)  # This should work since get_task_data() returns a dict
+        }
+        log += json.dumps(sample, indent=4, ensure_ascii=False) + "\n\n"
+    return log

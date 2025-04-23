@@ -50,7 +50,6 @@ class Graph(SQLModel, table=True):
 
 
     def run(self, task_id):
-        # Create a new namespace for each execution
         namespace = {
             '__name__': '__exec__',
             '__package__': None,
@@ -169,3 +168,8 @@ def get_high_variation_task(k=1):
     with Session(_engine) as session:
         ret.extend(session.exec(select(Run.task_id).group_by(Run.task_id).order_by(func.std(Run.correct).desc()).limit(k - len(ret))).all())
     return ret
+
+
+def optimize():
+    import openai
+    
