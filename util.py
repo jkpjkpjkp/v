@@ -8,9 +8,9 @@ import inspect
 from typing import get_args, get_origin
 import os
 import itertools
-os.environ['OPENAI_API_KEY'] = os.environ['OPENROUTER_API_KEY']
-os.environ['OPENAI_BASE_URL'] = 'https://openrouter.ai/api/v1'
-model = 'google/gemini-2.5-flash-preview:thinking'
+# os.environ['OPENAI_API_KEY'] = os.environ['OPENROUTER_API_KEY']
+# os.environ['OPENAI_BASE_URL'] = 'https://openrouter.ai/api/v1'
+model = 'gemini-2.5-pro-exp-03-25'
 
 
 format = 'png'
