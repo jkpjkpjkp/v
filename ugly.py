@@ -71,7 +71,7 @@ def format_log(obj):
 
 
 
-async def xml_extract(self, content: str, pydantic_model) -> Dict[str, Any]:
+def xml_extract(content: str, pydantic_model) -> Dict[str, Any]:
     field_names = pydantic_model.get_field_names()
     field_types = pydantic_model.get_field_types()
     extracted_data = {}

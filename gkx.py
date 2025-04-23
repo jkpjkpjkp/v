@@ -13,6 +13,11 @@ import itertools
 import re
 from data.data import get_task_by_id, get_all_task_ids
 from pydantic import BaseModel
+import datetime
+
+import openai
+from stocholm_prompt import WORKFLOW_OPTIMIZE_PROMPT, WORKFLOW_INPUT, OPERATOR_DESCRIPTION
+from ugly import compute_probabilities, format_experience, format_log, xml_extract
 
 db_name = "data/db.sqlite"
 
@@ -101,13 +106,13 @@ class Graph(SQLModel, table=True):
 
         except ModuleNotFoundError as e:
             print(f"ModuleNotFoundError: {e}")
-            raise
+            return 'ERROR'
         except Exception:
             print("--- Error running graph ---")
             if log_output:
                 print(log_output.getvalue())
             print("--- error ---")
-            raise
+            return 'ERROR'
 
 
 class Run(SQLModel, table=True):
@@ -190,12 +195,11 @@ def db_session(func):
 
 @db_session
 def optimize(run: Run):
-    import openai
-    from stocholm_prompt import WORKFLOW_OPTIMIZE_PROMPT, WORKFLOW_INPUT, OPERATOR_DESCRIPTION
-    from ugly import compute_probabilities, format_experience, format_log, xml_extract
+    print('A')
     graph = run.graph
+    print(graph.id)
     response = openai.chat.completions.create(
-        model = 'google/gemini-2.5-flash-preview',
+        model = 'gemini-2.0-flash',
         messages=[
             {'role': 'user', 'content': WORKFLOW_OPTIMIZE_PROMPT.format(
                 experience=WORKFLOW_INPUT.format(
@@ -207,15 +211,21 @@ def optimize(run: Run):
             )}
         ]
     )
+    print(format_log(response))
     class Opti(BaseModel):
         modification: str = Field(..., description='summarize the modification you plan to make')
         agent: str = Field(..., description='the modified agent.py')
     ret = xml_extract(response.choices[0].message.content, Opti)
     graph = Graph(graph=ret.agent, father=graph, change=ret.modification)
     graph = put(graph)
+    with open(f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_graph_{graph.id}.py", "w") as f:
+        f.write(graph.graph)
 
     task = get_high_variation_task()
-    result = graph.run(task)
+    result, run = graph.run(task)
+
+
+
 
 
 if __name__ == '__main__':
